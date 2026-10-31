@@ -1,0 +1,72 @@
+<html>
+    <head>
+        <title>Lost Pet Tracker</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+
+    <body>
+        <header>
+            <a class="brand" href="index.html">Lost Pet Tracker</a>
+            <nav class="main-nav"> 
+                <li> <a href="index.html">Home</a></li>
+                <li> <a href="my-reports.html">View Reports</a></li>
+            </nav>
+        </header>
+
+        <div class="main-content">
+            <div class="form-area">
+                <h2>Report a lost pet</h2>
+                <form id="report-form" enctype="multipart/form-data">
+
+                    <label>Email Address
+                    <input type="email" name="email_address" required>
+                    </label>
+
+                    <label>Report title
+                    <input type="text" name="report_title" maxlength="100" placeholder="e.g. Lost tan beagle near Rosedale Park" required>
+                    </label>
+
+                    <label>Species
+                    <select name="species" required>
+                        <option value="">Select a species</option>
+                        <option>Dog</option>
+                        <option>Cat</option>
+                        <option>Other</option>
+                    </select>
+                    </label>
+
+                    <label>Breed <span class="optional">(optional)</span>
+                    <input type="text" name="breed">
+                    </label>
+
+                    <label>Where was the pet last seen?
+                    <input type="text" name="last_seen_location" placeholder="Street, neighborhood, or landmark" required>
+                    </label>
+
+                    <label>When was the pet last seen?
+                    <input type="datetime-local" name="last_seen_at" required>
+                    </label>
+
+                    <label>Pet colors
+                    <input type="text" name="colors" placeholder="e.g. Tan and white" required>
+                    </label>
+
+                    <label>Pet markings
+                    <input type="text" name="markings" placeholder="e.g. White chest patch, black left ear" required>
+                    </label>
+
+                    <label>Details <span class="optional">(optional)</span>
+                    <textarea name="details" rows="4" placeholder="Collar, behavior, microchip, anything that helps"></textarea>
+                    </label>
+
+                    <label>Photo
+                    <input type="file" name="photo" accept="image/*" required>
+                    </label>
+
+                    <button type="submit">Submit report</button>
+                </form>
+                <p id="report-result"></p>
+            </div>
+        </div>
+    </body>
+</html>
