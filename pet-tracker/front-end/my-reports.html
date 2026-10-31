@@ -1,0 +1,29 @@
+<html>
+    <head>
+        <title>Lost Pet Tracker</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+
+    <body>
+        <header>
+            <a class="brand" href="index.html">Lost Pet Tracker</a>
+            <nav class="main-nav"> 
+                <li> <a href="index.html">Home</a></li>
+                <li> <a href="my-reports.html">View Reports</a></li>
+            </nav>
+        </header>
+
+        <div class="main-content">
+            <div class="form-area">
+                <h2>Verify and view my reports</h2>
+                <form id="access-form">
+                <label>Account ID <input type="text" name="account_id" required></label>
+                <label>Verification code <input name="code" maxlength="6" required></label>
+                <button type="submit">Verify and view</button>
+                </form>
+                <p id="access-result"></p>
+                <ul id="report-list"></ul>
+            </div>
+        </div>
+    </body>
+</html>
