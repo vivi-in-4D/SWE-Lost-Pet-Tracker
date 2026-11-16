@@ -4,13 +4,17 @@ It is a web application designed to aid in finding lost pets.
 
 Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
 
+# DEPENDENCIES
+- everything in `back-end/requirements.txt`
+- PostgreSQL
+- Python 3.x
 
 # HOW TO RUN
 
-1. in `pet-tracker/back-end`, copy `.env.example` to `.env`. fill in your PostgreSQL
+1. in `back-end`, copy `.env.example` to `.env`. fill in your PostgreSQL
    user name and password.
 
-2. from `pet-tracker/back-end`, run:
+2. from `back-end`, run:
 
    ```
    pip install -r requirements.txt
