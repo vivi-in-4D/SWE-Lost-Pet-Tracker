@@ -9,6 +9,7 @@ start the site:
 routes:
 
     POST /api/reports     submit a lost or found pet report
+    GET  /api/reports     browse and filter the public reports
     POST /api/code        email a new verification code
     POST /api/signin      check a code and sign in
     POST /api/signout     sign out
@@ -157,6 +158,13 @@ def my_page(request: Request):
 
     with db.connect() as conn:
         return backend.my_page(conn, account_id)
+
+
+@app.get("/api/reports")
+def browse_reports(request: Request):
+    """the public reports that match the filters in the address, for the browse page."""
+    with db.connect() as conn:
+        return backend.browse_reports(conn, request.query_params)
 
 
 # ----- errors -----

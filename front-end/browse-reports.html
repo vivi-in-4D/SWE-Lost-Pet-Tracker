@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Browse reports | Lost Pet Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <a class="brand" href="index.html">Lost Pet Tracker</a>
+
+        <nav class="main-nav" aria-label="Main">
+            <ul>
+                <li><a href="index.html">Report a pet</a></li>
+                <li><a href="browse-reports.html" aria-current="page">Browse reports</a></li>
+                <li><a href="my-reports.html">My report</a></li>
+                <li><a href="matches.html">Matches</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="form-area" id="filter-section">
+            <h1>Browse lost and found pets</h1>
+
+            <!-- handled by app.js -->
+            <form id="filter-form" data-local>
+
+                <fieldset>
+                    <legend>Report status</legend>
+
+                    <label class="choice">
+                        <input type="radio" name="post_type" value="" checked>
+                        All reports
+                    </label>
+
+                    <label class="choice">
+                        <input type="radio" name="post_type" value="lost">
+                        Lost pets
+                    </label>
+
+                    <label class="choice">
+                        <input type="radio" name="post_type" value="found">
+                        Found pets
+                    </label>
+                </fieldset>
+
+                <label>
+                    Species
+                    <select name="species">
+                        <option value="">Any species</option>
+                        <option value="dog">Dog</option>
+                        <option value="cat">Cat</option>
+                        <option value="other">Other</option>
+                    </select>
+                </label>
+
+                <!-- will not show if "Other" species is selected -->
+                <div id="breed-field">
+                    <label>
+                        Breed <span class="optional">(dogs and cats)</span>
+                        <input type="text" name="breed" maxlength="100" placeholder="e.g. Beagle">
+                    </label>
+                </div>
+
+                <label>
+                    Sex
+                    <select name="sex">
+                        <option value="">Any</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </label>
+
+                <label>
+                    Pet colors
+                    <input type="text" name="colors" placeholder="e.g. Tan, white">
+                </label>
+                <p class="help">Separate several colors with commas. Reports that match any of them are shown.</p>
+
+                <fieldset>
+                    <legend>Location</legend>
+
+                    <label>
+                        City or coordinates
+                        <input type="text" name="location" placeholder="e.g. Atlanta or 33.75, -84.39">
+                    </label>
+                    <button type="button" id="use-location" class="secondary">Use my current location</button>
+
+                    <label>
+                        Search distance
+                        <select name="radius">
+                            <option value="5">Within 3 miles</option>
+                            <option value="10">Within 5 miles</option>
+                            <option value="25" selected>Within 10 miles</option>
+                            <option value="50">Within 20 miles</option>
+                            <option value="100">Within 50 miles</option>
+                        </select>
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Date last seen or found</legend>
+
+                    <div class="range">
+                        <label>
+                            From
+                            <input type="date" name="date_from">
+                        </label>
+
+                        <label>
+                            To
+                            <input type="date" name="date_to">
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Size (weight in kilograms)</legend>
+
+                    <div class="range">
+                        <label>
+                            Minimum
+                            <input type="number" name="min_weight" min="0" step="0.1">
+                        </label>
+
+                        <label>
+                            Maximum
+                            <input type="number" name="max_weight" min="0" step="0.1">
+                        </label>
+                    </div>
+                </fieldset>
+
+                <div class="button-row">
+                    <button type="submit">Search reports</button>
+                    <button type="reset" class="secondary">Clear filters</button>
+                </div>
+                <p class="message" role="alert"></p>
+            </form>
+        </section>
+
+        <section id="results-section" aria-label="Search results">
+            <p id="results-status" role="status"></p>
+            <ul id="report-list" class="match-list"></ul>
+        </section>
+    </main>
+</body>
+</html>

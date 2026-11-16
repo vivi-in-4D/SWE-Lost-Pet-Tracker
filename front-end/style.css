@@ -213,3 +213,37 @@ body.signed-in .when-signed-in,
 body.signed-out .when-signed-out {
     display: block;
 }
+
+.range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+}
+
+@media (max-width: 480px) {
+    .range {
+        grid-template-columns: 1fr;
+    }
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.button-row button.secondary {
+    margin-bottom: 0;
+}
+
+#results-status {
+    margin: 0 0 12px;
+}
+
+#results-status.no-results {
+    font-weight: 600;
+    border: 1px solid #999;
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+}

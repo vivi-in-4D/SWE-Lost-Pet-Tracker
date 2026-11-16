@@ -22,7 +22,7 @@ from psycopg.rows import dict_row
 
 
 BACKEND_FOLDER = Path(__file__).resolve().parent
-SCHEMA_FILE = BACKEND_FOLDER.parent.parent / "lost-pet-database.sql"
+SCHEMA_FILE = BACKEND_FOLDER.parent / "lost-pet-database.sql"
 UPLOADS_FOLDER = BACKEND_FOLDER / "uploads"
 
 load_dotenv(BACKEND_FOLDER / ".env")

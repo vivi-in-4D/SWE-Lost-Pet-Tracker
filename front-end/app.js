@@ -1,4 +1,4 @@
-// lost pet tracker: the one script shared by index.html, my-reports.html and matches.html.
+// lost pet tracker: the one script shared by index.html, browse.html, my-reports.html and matches.html.
 
 document.addEventListener("DOMContentLoaded", startPage);
 
@@ -6,6 +6,7 @@ function startPage() {
   connectForms();
   connectLocationButton();
   showSignedInContent();
+  connectBrowsePage();
 }
 
 
@@ -30,6 +31,7 @@ async function sendToServer(address, form) {
 // ----- forms -----
 // a form (or one of its buttons) names its server address in data-api,
 // and what should happen afterwards in data-then.
+// a form marked data-local is handled by its own code (see the browse page below).
 
 const NEXT_STEPS = {
   showCodeStep(reply) {
@@ -49,6 +51,9 @@ const NEXT_STEPS = {
 
 function connectForms() {
   for (const form of document.forms) {
+    if (form.hasAttribute("data-local")) {
+      continue;
+    }
     form.addEventListener("submit", submitForm);
   }
 }
@@ -103,6 +108,135 @@ function locationRefused() {
 }
 
 
+// ----- browse page -----
+// the filter form asks the server for reports with GET /api/reports?...
+// only the filters the person filled in are sent. the server replies { reports: [...] }.
+
+let latestSearch = 0;
+
+function connectBrowsePage() {
+  const form = document.getElementById("filter-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    searchReports();
+  });
+
+  form.addEventListener("reset", () => {
+    setTimeout(() => {
+      updateBreedField();
+      searchReports();
+    });
+  });
+
+  form.elements.species.addEventListener("change", updateBreedField);
+
+  updateBreedField();
+  searchReports();
+}
+
+// breed is hidden when "Other" is chosen.
+function updateBreedField() {
+  const form = document.getElementById("filter-form");
+  const applies = form.elements.species.value !== "other";
+
+  document.getElementById("breed-field").hidden = !applies;
+  if (!applies) {
+    form.elements.breed.value = "";
+  }
+}
+
+// turns the filled-in fields into a query string, leaving out empty ones.
+function filterQuery(form) {
+  const query = new URLSearchParams();
+
+  for (const [name, value] of new FormData(form)) {
+    const text = String(value).trim();
+    if (text) {
+      query.set(name, text);
+    }
+  }
+
+  // cannot determine distance without a location.
+  if (!query.has("location")) {
+    query.delete("radius");
+  }
+
+  return query;
+}
+
+// returns a description of the first problem with the filters, or null when they are fine.
+function filterProblem(form) {
+  const { date_from, date_to, min_weight, max_weight } = form.elements;
+
+  if (date_from.value && date_to.value && date_from.value > date_to.value) {
+    return { text: "The start date must be on or before the end date.", field: date_from };
+  }
+
+  if (min_weight.value && max_weight.value && Number(min_weight.value) > Number(max_weight.value)) {
+    return { text: "The minimum weight must not be more than the maximum weight.", field: min_weight };
+  }
+
+  return null;
+}
+
+async function searchReports() {
+  const form = document.getElementById("filter-form");
+  const message = form.querySelector(".message");
+  const status = document.getElementById("results-status");
+  const list = document.getElementById("report-list");
+
+  const problem = filterProblem(form);
+  if (problem) {
+    message.className = "message error";
+    message.textContent = problem.text;
+    problem.field.focus();
+    return;
+  }
+
+  message.className = "message";
+  message.textContent = "";
+  status.className = "";
+  status.textContent = "Searching...";
+
+  const thisSearch = ++latestSearch;
+
+  try {
+    const reply = await sendToServer(`/api/reports?${filterQuery(form)}`);
+    if (thisSearch !== latestSearch) {
+      return;
+    }
+
+    const reports = reply.reports || [];
+    list.innerHTML = reports.map(browseCardHtml).join("");
+
+    if (reports.length === 0) {
+      status.className = "no-results";
+      status.textContent = "No reports found. Try widening the search or clearing some filters.";
+    } else {
+      status.textContent = reports.length === 1 ? "1 report found." : `${reports.length} reports found.`;
+    }
+  } catch (error) {
+    if (thisSearch !== latestSearch) {
+      return;
+    }
+
+    list.innerHTML = "";
+    status.textContent = "";
+    message.className = "message error";
+    message.textContent = error.message;
+
+    const field = form.elements[error.field];
+    if (field && field.focus) {
+      field.focus();
+    }
+  }
+}
+
+
 // ----- my report and matches pages -----
 
 async function showSignedInContent() {
@@ -138,7 +272,7 @@ function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
-// the photos and details of one report. used for your own report and for each match.
+// the photos and details of one report. used for your own report, for each match and for each browse result.
 function reportHtml(report) {
   const isLost = report.posttype === "lost";
 
@@ -196,6 +330,22 @@ function matchHtml(match) {
       <p class="score">Match score: ${percent}%</p>
       <p>${escapeHtml(match.explanation)}</p>
       ${reportHtml(match.report)}
+      ${contact}
+    </li>`;
+}
+
+// one result on the browse page. contact details only appear when the poster made them public.
+function browseCardHtml(report) {
+  const contacts = report.contacts || [];
+
+  let contact = "<p>Contact details are shared only with people whose report matches this one.</p>";
+  if (contacts.length > 0) {
+    contact = `<h3>Contact</h3>${contactsHtml(contacts)}`;
+  }
+
+  return `
+    <li class="match-card">
+      ${reportHtml(report)}
       ${contact}
     </li>`;
 }
