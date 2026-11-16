@@ -5,7 +5,7 @@ import os
 import re
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import database as db
 
@@ -838,3 +838,154 @@ def my_page(conn, account_id):
         "contacts": db.contacts(conn, account_id),
         "matches": matches,
     }
+
+
+# ----- browsing reports -----
+
+MAX_BROWSE_RESULTS = 100
+DEFAULT_RADIUS_KM = 25
+
+
+def like_pattern(text):
+    """a 'contains' pattern for ILIKE, with the wildcard characters in the text escaped."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def parse_day(text, field, label):
+    """the date in `text` (yyyy-mm-dd), or None when it is empty."""
+    text = check_text(text, field, label, 10, required=False)
+    if text is None:
+        return None
+
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        raise ValidationError(f"{label} must be a date like 2026-11-16.", field) from None
+
+
+def local_midnight(day):
+    """the start of `day` in the server's local time, like set_last_seen_time assumes."""
+    return datetime.combine(day, datetime.min.time()).astimezone()
+
+
+def browse_reports(conn, filters):
+    """the public reports that match the browse page's filters, as {"reports": [...]}.
+
+    `filters` maps filter names to text (for example request.args). empty filters are
+    ignored. only active, unresolved reports are shown. with a location the nearest
+    reports come first, otherwise the newest.
+    """
+    conditions = ["Post.Status = 'active'", "Post.ResolvedAt IS NULL"]
+    values = []
+
+    post_type = check_text(filters.get("post_type"), "post_type", "The report status", 10, required=False)
+    if post_type is not None:
+        post_type = post_type.lower()
+        if post_type not in ("lost", "found"):
+            raise ValidationError("The report status must be 'lost' or 'found'.", "post_type")
+        conditions.append("Post.PostType = %s")
+        values.append(post_type)
+
+    species = check_text(filters.get("species"), "species", "The species", 50, required=False)
+    if species is not None:
+        conditions.append("lower(Post.Species) = %s")
+        values.append(species.lower())
+
+    breed = check_text(filters.get("breed"), "breed", "The breed", 100, required=False)
+    if breed is not None:
+        conditions.append("Post.Breed ILIKE %s")
+        values.append(like_pattern(breed))
+
+    sex = check_text(filters.get("sex"), "sex", "Sex", 7, required=False)
+    if sex is not None:
+        sex = sex.lower()
+        if sex not in ("male", "female", "unknown"):
+            raise ValidationError("Sex must be male, female or unknown.", "sex")
+        conditions.append("Post.Sex = %s")
+        values.append(sex)
+
+    # "tan, white" and "tan and white" both mean the colors tan and white. a report
+    # matches when it has any of them, and "brown" also matches "dark brown".
+    color_text = check_text(filters.get("colors"), "colors", "Colors", 200, required=False)
+    if color_text is not None:
+        names = [name.strip().lower() for name in re.split(r",|&|/|\band\b", color_text)]
+        names = [name for name in names if name][:10]
+        if names:
+            tests = " OR ".join("PetColor.Color ILIKE %s" for _ in names)
+            conditions.append(
+                "EXISTS (SELECT 1 FROM PetColor "
+                f"WHERE PetColor.PostID = Post.PostID AND ({tests}))"
+            )
+            values.extend(like_pattern(name) for name in names)
+
+    lightest = check_number(filters.get("min_weight"), "min_weight", "The minimum weight", 0, 1000, required=False)
+    heaviest = check_number(filters.get("max_weight"), "max_weight", "The maximum weight", 0, 1000, required=False)
+    if lightest is not None and heaviest is not None and lightest > heaviest:
+        raise ValidationError("The minimum weight must not be more than the maximum weight.", "min_weight")
+    if lightest is not None:
+        conditions.append("Post.Weight >= %s")
+        values.append(lightest)
+    if heaviest is not None:
+        conditions.append("Post.Weight <= %s")
+        values.append(heaviest)
+
+    first_day = parse_day(filters.get("date_from"), "date_from", "The start date")
+    last_day = parse_day(filters.get("date_to"), "date_to", "The end date")
+    if first_day is not None and last_day is not None and first_day > last_day:
+        raise ValidationError("The start date must be on or before the end date.", "date_from")
+    if first_day is not None:
+        conditions.append("Post.LostOrFoundAt >= %s")
+        values.append(local_midnight(first_day))
+    if last_day is not None:
+        # the end date counts as a whole day, so stop at the start of the next one.
+        conditions.append("Post.LostOrFoundAt < %s")
+        values.append(local_midnight(last_day + timedelta(days=1)))
+
+    origin = None
+    radius = None
+    place = check_text(filters.get("location"), "location", "The location", 200, required=False)
+    if place is not None:
+        point = locate(place)
+        if point is None:
+            raise ValidationError(
+                "We could not find that place. Try a city name or coordinates like 33.75, -84.39.",
+                "location",
+            )
+        origin = {"latitude": point[0], "longitude": point[1]}
+
+        radius = check_number(filters.get("radius_km"), "radius_km", "The search distance", 0.1, 1000, required=False)
+        if radius is None:
+            radius = DEFAULT_RADIUS_KM
+
+    rows = db.query(
+        conn,
+        f"""
+        SELECT Post.PostID, Post.Latitude, Post.Longitude
+        FROM Post
+        WHERE {" AND ".join(conditions)}
+        ORDER BY Post.LostOrFoundAt DESC, Post.PostID DESC
+        """,
+        tuple(values),
+    )
+
+    if origin is not None:
+        nearby = []
+        for row in rows:
+            spot = {"latitude": float(row["latitude"]), "longitude": float(row["longitude"])}
+            km = distance_km(origin, spot)
+            if km <= radius:
+                nearby.append((km, row))
+
+        # sort is stable, so reports the same distance away stay newest first.
+        nearby.sort(key=lambda pair: pair[0])
+        rows = [row for km, row in nearby]
+
+    reports = []
+    for row in rows[:MAX_BROWSE_RESULTS]:
+        report = dict(db.load_report(conn, row["postid"]))
+        contacts = db.contacts(conn, report.pop("accountid"))
+        report["contacts"] = [c for c in contacts if c["visibility"] == "public"]
+        reports.append(report)
+
+    return {"reports": reports}
