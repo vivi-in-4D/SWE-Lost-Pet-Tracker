@@ -11,7 +11,6 @@ Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
 - node.js 24.x
 
 # HOW TO RUN
-
 1. in `back-end`, copy `.env.example` to `.env`. fill in your PostgreSQL
    user name and password.
 
@@ -26,6 +25,5 @@ Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
 3. Open http://localhost:8000
 
 # Notes
-
 - AI matching and SMTP are not currently set up.
 - Verification codes currently appear in the terminal running the server after post creation.
