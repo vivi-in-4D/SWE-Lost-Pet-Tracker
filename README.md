@@ -4,7 +4,7 @@ It is a web application designed to aid in finding lost pets.
 
 Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
 
-# DEPENDENCIES
+# Dependencies
 - everything in `back-end/requirements.txt`
 - PostgreSQL
 - Python 3.x
