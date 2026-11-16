@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My report | Lost Pet Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <a class="brand" href="index.html">Lost Pet Tracker</a>
+
+        <nav class="main-nav" aria-label="Main">
+            <ul>
+                <li><a href="index.html">Report a pet</a></li>
+                <li><a href="my-reports.html" aria-current="page">My report</a></li>
+                <li><a href="matches.html">Matches</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="form-area when-signed-out">
+            <h1>View my report</h1>
+
+            <p>
+                Enter the account number from your verification email and ask for a code.
+                Then enter the code we email you.
+            </p>
+
+            <form>
+                <label>
+                    Account number
+                    <input type="text" name="account_number" inputmode="numeric" autocomplete="off" maxlength="20" required>
+                </label>
+                <button type="submit" class="secondary" data-api="/api/code">Email me a code</button>
+
+                <label>
+                    Verification code
+                    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+                </label>
+                <button type="submit" data-api="/api/signin" data-then="reloadPage">Sign in</button>
+
+                <p class="message" role="alert"></p>
+            </form>
+        </section>
+
+        <section class="form-area when-signed-in">
+            <h1>My report</h1>
+
+            <div id="my-report" class="photos"></div>
+
+            <p><a href="matches.html">See potential matches for this report</a></p>
+
+            <form data-api="/api/signout" data-then="reloadPage">
+                <button type="submit" class="secondary">Sign out</button>
+                <p class="message" role="alert"></p>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

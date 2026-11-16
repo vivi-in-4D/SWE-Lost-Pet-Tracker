@@ -1,0 +1,215 @@
+body {
+    font-family: sans-serif;
+    line-height: 1.45;
+    color: black;
+    background-color: white;
+    max-width: 760px;
+    margin: 24px auto;
+    padding: 0 16px;
+}
+
+h1 {
+    font-size: 24px;
+    margin-top: 0;
+}
+
+h2 {
+    font-size: 20px;
+}
+
+h3 {
+    font-size: 16px;
+    margin-bottom: 4px;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid #1a5fb4;
+    outline-offset: 2px;
+}
+
+
+header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+}
+
+.brand {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: black;
+    text-decoration: none;
+}
+
+.main-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.main-nav li {
+    display: inline-block;
+    padding: 15px;
+    border-radius: 30px;
+}
+
+.main-nav li:hover {
+    background-color: lightblue;
+}
+
+.main-nav a {
+    color: black;
+    text-decoration: none;
+}
+
+.main-nav a[aria-current="page"] {
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+
+.form-area {
+    border: 1px solid;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px;
+    margin-top: 4px;
+    font: inherit;
+}
+
+fieldset {
+    border: 1px solid #999;
+    border-radius: 6px;
+    margin: 0 0 12px;
+    padding: 8px 12px;
+}
+
+legend {
+    font-weight: 600;
+}
+
+label.choice {
+    display: inline-block;
+    font-weight: 400;
+    margin: 4px 16px 4px 0;
+}
+
+label.choice input {
+    display: inline;
+    width: auto;
+    margin: 0 4px 0 0;
+}
+
+button {
+    padding: 8px 16px;
+    font: inherit;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: none;
+    border: 1px solid #555;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+.optional {
+    font-weight: 400;
+    color: #555;
+}
+
+.help {
+    margin: -6px 0 10px;
+    font-size: 14px;
+    color: #555;
+}
+
+.message {
+    margin: 12px 0 0;
+    min-height: 1.2em;
+}
+
+.message.error {
+    color: #a51d2d;
+    font-weight: 600;
+}
+
+.message.error::before {
+    content: "Problem: ";
+}
+
+
+dl.details {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    margin: 8px 0;
+}
+
+dl.details dt {
+    font-weight: 600;
+}
+
+dl.details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.photos img {
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 6px;
+    margin: 4px 8px 4px 0;
+}
+
+
+.match-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.match-card {
+    border-top: 1px solid #999;
+    padding: 12px 0;
+}
+
+.match-card .score {
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 8px;
+}
+
+
+.when-signed-in,
+.when-signed-out {
+    display: none;
+}
+
+body.signed-in .when-signed-in,
+body.signed-out .when-signed-out {
+    display: block;
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Potential matches | Lost Pet Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <a class="brand" href="index.html">Lost Pet Tracker</a>
+
+        <nav class="main-nav" aria-label="Main">
+            <ul>
+                <li><a href="index.html">Report a pet</a></li>
+                <li><a href="my-reports.html">My report</a></li>
+                <li><a href="matches.html" aria-current="page">Matches</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="form-area">
+            <h1>Potential matches</h1>
+
+            <p class="when-signed-out">
+                <a href="my-reports.html">Sign in with your account number</a>
+                to see matches for your report.
+            </p>
+
+            <div class="when-signed-in">
+                <p>
+                    Reports that may be the same animal as yours, best match first.
+                    These are suggestions: you decide whether it is the same animal.
+                </p>
+
+                <ol id="match-list" class="match-list photos"></ol>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
