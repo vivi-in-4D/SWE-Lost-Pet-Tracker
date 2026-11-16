@@ -1,4 +1,4 @@
-// lost pet tracker: the one script shared by index.html, browse.html, my-reports.html and matches.html.
+// lost pet tracker: the one script shared by index.html, browse-reports.html, my-reports.html and matches.html.
 
 document.addEventListener("DOMContentLoaded", startPage);
 
