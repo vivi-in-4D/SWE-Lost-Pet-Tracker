@@ -8,6 +8,7 @@ Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
 - everything in `back-end/requirements.txt`
 - PostgreSQL
 - Python 3.x
+- node.js 24.x
 
 # HOW TO RUN
 
@@ -23,3 +24,8 @@ Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
    ```
 
 3. Open http://localhost:8000
+
+# Notes
+
+- AI matching and SMTP are not currently set up.
+- Verification codes currently appear in the terminal running the server after post creation.
