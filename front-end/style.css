@@ -204,6 +204,28 @@ dl.details dd {
 }
 
 
+.range {
+    display: flex;
+    gap: 16px;
+}
+
+.range label {
+    flex: 1;
+}
+
+.button-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+
+footer {
+    font-size: 14px;
+    color: #555;
+}
+
+
 .when-signed-in,
 .when-signed-out {
     display: none;
@@ -212,38 +234,4 @@ dl.details dd {
 body.signed-in .when-signed-in,
 body.signed-out .when-signed-out {
     display: block;
-}
-
-.range {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 12px;
-}
-
-@media (max-width: 480px) {
-    .range {
-        grid-template-columns: 1fr;
-    }
-}
-
-.button-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.button-row button.secondary {
-    margin-bottom: 0;
-}
-
-#results-status {
-    margin: 0 0 12px;
-}
-
-#results-status.no-results {
-    font-weight: 600;
-    border: 1px solid #999;
-    border-radius: 6px;
-    padding: 16px;
-    text-align: center;
 }

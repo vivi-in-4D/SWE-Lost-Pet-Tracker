@@ -15,9 +15,9 @@
         <nav class="main-nav" aria-label="Main">
             <ul>
                 <li><a href="index.html">Report a pet</a></li>
-                <li><a href="browse-reports.html" aria-current="page">Browse reports</a></li>
                 <li><a href="my-reports.html">My report</a></li>
                 <li><a href="matches.html">Matches</a></li>
+                <li><a href="browse-reports.html" aria-current="page">Browse reports</a></li>
             </ul>
         </nav>
     </header>
@@ -27,7 +27,7 @@
             <h1>Browse lost and found pets</h1>
 
             <!-- handled by app.js -->
-            <form id="filter-form" data-local>
+            <form id="filter-form" data-api="/api/browse" data-then="showResults">
 
                 <fieldset>
                     <legend>Report status</legend>
@@ -85,19 +85,19 @@
                     <legend>Location</legend>
 
                     <label>
-                        City or coordinates
-                        <input type="text" name="location" placeholder="e.g. Atlanta or 33.75, -84.39">
+                        Town, ZIP code or coordinates
+                        <input type="text" name="location" placeholder="e.g. New York, NY or 10001">
                     </label>
                     <button type="button" id="use-location" class="secondary">Use my current location</button>
 
                     <label>
                         Search distance
                         <select name="radius">
-                            <option value="5">Within 3 miles</option>
-                            <option value="10">Within 5 miles</option>
-                            <option value="25" selected>Within 10 miles</option>
-                            <option value="50">Within 20 miles</option>
-                            <option value="100">Within 50 miles</option>
+                            <option value="3">Within 3 miles</option>
+                            <option value="5">Within 5 miles</option>
+                            <option value="10" selected>Within 10 miles</option>
+                            <option value="20">Within 20 miles</option>
+                            <option value="50">Within 50 miles</option>
                         </select>
                     </label>
                 </fieldset>
@@ -144,8 +144,12 @@
 
         <section id="results-section" aria-label="Search results">
             <p id="results-status" role="status"></p>
-            <ul id="report-list" class="match-list"></ul>
+            <ul id="report-list" class="match-list photos"></ul>
         </section>
     </main>
+
+    <footer>
+        <p>Town and ZIP code locations from <a href="https://www.geonames.org">GeoNames</a> (CC BY 4.0).</p>
+    </footer>
 </body>
 </html>

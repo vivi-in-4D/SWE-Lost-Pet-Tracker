@@ -1,12 +1,10 @@
-// lost pet tracker: the one script shared by index.html, browse-reports.html, my-reports.html and matches.html.
-
 document.addEventListener("DOMContentLoaded", startPage);
 
 function startPage() {
   connectForms();
   connectLocationButton();
-  showSignedInContent();
   connectBrowsePage();
+  showSignedInContent();
 }
 
 
@@ -31,7 +29,6 @@ async function sendToServer(address, form) {
 // ----- forms -----
 // a form (or one of its buttons) names its server address in data-api,
 // and what should happen afterwards in data-then.
-// a form marked data-local is handled by its own code (see the browse page below).
 
 const NEXT_STEPS = {
   showCodeStep(reply) {
@@ -47,13 +44,25 @@ const NEXT_STEPS = {
   reloadPage() {
     location.reload();
   },
+
+  showResults(reply) {
+    const count = reply.reports.length;
+    const status = document.getElementById("results-status");
+
+    if (count === 0) {
+      status.textContent = "No reports found. Try a wider search distance or fewer filters.";
+    } else if (count === 1) {
+      status.textContent = "1 report found.";
+    } else {
+      status.textContent = `${count} reports found.`;
+    }
+
+    document.getElementById("report-list").innerHTML = reply.reports.map(browsedReportHtml).join("");
+  },
 };
 
 function connectForms() {
   for (const form of document.forms) {
-    if (form.hasAttribute("data-local")) {
-      continue;
-    }
     form.addEventListener("submit", submitForm);
   }
 }
@@ -108,11 +117,7 @@ function locationRefused() {
 }
 
 
-// ----- browse page -----
-// the filter form asks the server for reports with GET /api/reports?...
-// only the filters the person filled in are sent. the server replies { reports: [...] }.
-
-let latestSearch = 0;
+// ----- browse reports page -----
 
 function connectBrowsePage() {
   const form = document.getElementById("filter-form");
@@ -120,120 +125,23 @@ function connectBrowsePage() {
     return;
   }
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    searchReports();
+  const breedField = document.getElementById("breed-field");
+  const species = form.elements.species;
+
+  species.addEventListener("change", () => {
+    breedField.hidden = species.value === "other";
+    if (breedField.hidden) {
+      form.elements.breed.value = "";
+    }
   });
 
   form.addEventListener("reset", () => {
-    setTimeout(() => {
-      updateBreedField();
-      searchReports();
-    });
+    breedField.hidden = false;
+    // the fields are cleared just after this event, so search again on the next tick
+    setTimeout(() => form.requestSubmit());
   });
 
-  form.elements.species.addEventListener("change", updateBreedField);
-
-  updateBreedField();
-  searchReports();
-}
-
-// breed is hidden when "Other" is chosen.
-function updateBreedField() {
-  const form = document.getElementById("filter-form");
-  const applies = form.elements.species.value !== "other";
-
-  document.getElementById("breed-field").hidden = !applies;
-  if (!applies) {
-    form.elements.breed.value = "";
-  }
-}
-
-// turns the filled-in fields into a query string, leaving out empty ones.
-function filterQuery(form) {
-  const query = new URLSearchParams();
-
-  for (const [name, value] of new FormData(form)) {
-    const text = String(value).trim();
-    if (text) {
-      query.set(name, text);
-    }
-  }
-
-  // cannot determine distance without a location.
-  if (!query.has("location")) {
-    query.delete("radius");
-  }
-
-  return query;
-}
-
-// returns a description of the first problem with the filters, or null when they are fine.
-function filterProblem(form) {
-  const { date_from, date_to, min_weight, max_weight } = form.elements;
-
-  if (date_from.value && date_to.value && date_from.value > date_to.value) {
-    return { text: "The start date must be on or before the end date.", field: date_from };
-  }
-
-  if (min_weight.value && max_weight.value && Number(min_weight.value) > Number(max_weight.value)) {
-    return { text: "The minimum weight must not be more than the maximum weight.", field: min_weight };
-  }
-
-  return null;
-}
-
-async function searchReports() {
-  const form = document.getElementById("filter-form");
-  const message = form.querySelector(".message");
-  const status = document.getElementById("results-status");
-  const list = document.getElementById("report-list");
-
-  const problem = filterProblem(form);
-  if (problem) {
-    message.className = "message error";
-    message.textContent = problem.text;
-    problem.field.focus();
-    return;
-  }
-
-  message.className = "message";
-  message.textContent = "";
-  status.className = "";
-  status.textContent = "Searching...";
-
-  const thisSearch = ++latestSearch;
-
-  try {
-    const reply = await sendToServer(`/api/reports?${filterQuery(form)}`);
-    if (thisSearch !== latestSearch) {
-      return;
-    }
-
-    const reports = reply.reports || [];
-    list.innerHTML = reports.map(browseCardHtml).join("");
-
-    if (reports.length === 0) {
-      status.className = "no-results";
-      status.textContent = "No reports found. Try widening the search or clearing some filters.";
-    } else {
-      status.textContent = reports.length === 1 ? "1 report found." : `${reports.length} reports found.`;
-    }
-  } catch (error) {
-    if (thisSearch !== latestSearch) {
-      return;
-    }
-
-    list.innerHTML = "";
-    status.textContent = "";
-    message.className = "message error";
-    message.textContent = error.message;
-
-    const field = form.elements[error.field];
-    if (field && field.focus) {
-      field.focus();
-    }
-  }
+  form.requestSubmit();
 }
 
 
@@ -272,7 +180,7 @@ function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
-// the photos and details of one report. used for your own report, for each match and for each browse result.
+// the photos and details of one report. used for your own report and for each match.
 function reportHtml(report) {
   const isLost = report.posttype === "lost";
 
@@ -319,11 +227,10 @@ function matchesHtml(matches) {
 
 function matchHtml(match) {
   const percent = Math.round(match.score * 100);
-
-  let contact = "<p>This poster's contact details are in your match notification email.</p>";
-  if (match.contacts.length > 0) {
-    contact = `<h3>Contact</h3>${contactsHtml(match.contacts)}`;
-  }
+  const contact = contactSectionHtml(
+    match.contacts,
+    "This poster's contact details are in your match notification email."
+  );
 
   return `
     <li class="match-card">
@@ -334,18 +241,23 @@ function matchHtml(match) {
     </li>`;
 }
 
-// one result on the browse page. contact details only appear when the poster made them public.
-function browseCardHtml(report) {
-  const contacts = report.contacts || [];
-
-  let contact = "<p>Contact details are shared only with people whose report matches this one.</p>";
-  if (contacts.length > 0) {
-    contact = `<h3>Contact</h3>${contactsHtml(contacts)}`;
-  }
+function browsedReportHtml(item) {
+  const contact = contactSectionHtml(
+    item.contacts,
+    "This poster has not made their contact details public."
+  );
 
   return `
     <li class="match-card">
-      ${reportHtml(report)}
+      ${reportHtml(item.report)}
       ${contact}
     </li>`;
+}
+
+function contactSectionHtml(contacts, textWhenNone) {
+  if (contacts.length === 0) {
+    return `<p>${textWhenNone}</p>`;
+  }
+
+  return `<h3>Contact</h3>${contactsHtml(contacts)}`;
 }
