@@ -19,7 +19,7 @@ Team Members: Benjamin Biscomb, Nimra Shakoor, Amari Harrington, Khasim Raza
    python database.py
    python server.py
    ```
-4. open the site in browser, using the port specified in `config.ini`
+4. open the site in browser using the port specified in `config.ini`
 
 # Notes
 - AI matching and SMTP are not currently set up.
