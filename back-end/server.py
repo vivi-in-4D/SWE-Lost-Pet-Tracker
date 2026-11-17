@@ -3,17 +3,19 @@ web server for the lost pet tracker.
 
 start the site:
 
-    python server.py            http://localhost:8000
-    python server.py 8001       another port
+    python server.py
+
+the port and the database to use are set in config.ini.
+it asks for the database password and the server passphrase before starting.
 
 routes:
 
     POST /api/reports     submit a lost or found pet report
-    GET  /api/reports     browse and filter the public reports
     POST /api/code        email a new verification code
     POST /api/signin      check a code and sign in
     POST /api/signout     sign out
     GET  /api/my          the signed-in poster's report and matches
+    POST /api/browse      search active reports with filters
 
 everything else is served from the front-end folder.
 """
@@ -21,7 +23,6 @@ everything else is served from the front-end folder.
 import re
 import secrets
 import shutil
-import sys
 from pathlib import Path
 
 import psycopg
@@ -160,11 +161,42 @@ def my_page(request: Request):
         return backend.my_page(conn, account_id)
 
 
-@app.get("/api/reports")
-def browse_reports(request: Request):
-    """the public reports that match the filters in the address, for the browse page."""
+@app.post("/api/browse")
+def browse_reports(
+    post_type: str = Form(""),
+    species: str = Form(""),
+    breed: str = Form(""),
+    sex: str = Form(""),
+    colors: str = Form(""),
+    location: str = Form(""),
+    radius: str = Form("10"),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
+    min_weight: str = Form(""),
+    max_weight: str = Form(""),
+):
+    """search active reports. every filter is optional."""
+    center = None
+    if location.strip():
+        center = find_location(location)
+
     with db.connect() as conn:
-        return backend.browse_reports(conn, request.query_params)
+        reports = backend.search_reports(
+            conn,
+            post_type=post_type,
+            species=species,
+            breed=breed,
+            sex=sex,
+            colors=colors,
+            date_from=date_from,
+            date_to=date_to,
+            min_weight=min_weight,
+            max_weight=max_weight,
+            center=center,
+            radius_miles=radius,
+        )
+
+    return {"reports": reports}
 
 
 # ----- errors -----
@@ -201,8 +233,8 @@ def find_location(text):
     place = backend.locate(text)
     if place is None:
         raise backend.ValidationError(
-            "We could not find that location. "
-            "Type a city, or coordinates such as 33.75, -84.39.",
+            "We could not find that location. Type a US town and state such as "
+            "New York, NY, a ZIP code such as 10001, or coordinates such as 40.75, -73.99.",
             "location",
         )
     return place
@@ -242,9 +274,10 @@ app.mount("/", StaticFiles(directory=FRONTEND_FOLDER, html=True), name="pages")
 
 
 def main():
-    port = 8000
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
+    port = int(db.CONFIG["site"]["port"])
+
+    db.ask_for_password()
+    backend.SECRET_KEY = db.ask_for_server_key()
 
     print(f"Lost Pet Tracker running at http://localhost:{port}  (Ctrl+C to stop)")
     uvicorn.run(app, host="127.0.0.1", port=port)
