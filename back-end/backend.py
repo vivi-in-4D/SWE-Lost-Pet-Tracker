@@ -1,17 +1,20 @@
+import functools
 import hashlib
 import hmac
 import math
-import os
 import re
 import secrets
 import time
-from datetime import date, datetime, timedelta, timezone
+import zipfile
+from datetime import date, datetime, timezone
 
 import database as db
 
 
-SECRET_SALT = os.getenv("SECRET_SALT", "dev-only-salt")
-SITE_ADDRESS = os.getenv("BASE_URL", "http://localhost:8000")
+# unlocked with the server passphrase when server.py starts, then kept only in memory
+SECRET_KEY = None
+
+SITE_ADDRESS = f"http://localhost:{db.CONFIG['site']['port']}"
 OUTBOX_FOLDER = db.BACKEND_FOLDER / "dev-outbox"
 
 SESSION_MINUTES = 30
@@ -260,12 +263,15 @@ def create_report(conn, report, email, email_visibility, phone="", phone_visibil
 # ----- accounts -----
 
 def keyed_hash(*parts):
-    """HMAC-SHA256 of the parts with the server's salt.
+    """HMAC-SHA256 of the parts with the server's secret key.
 
     account numbers, codes and sessions are only ever stored or compared in this form.
     """
+    if SECRET_KEY is None:
+        raise RuntimeError("The server key is locked. Start the site with: python server.py")
+
     text = ":".join(str(part) for part in parts)
-    return hmac.new(SECRET_SALT.encode(), text.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(SECRET_KEY, text.encode(), hashlib.sha256).hexdigest()
 
 
 def hash_account_number(account_number):
@@ -404,7 +410,7 @@ def email_new_code(conn, account_id, account_number, first_time=False):
 
     body = (
         f"Your Lost Pet Tracker code: {code}\n"
-        f"It works once and expires in {minutes} minutes.\n"
+        f"It expires in {minutes} minutes.\n"
     )
     if first_time:
         body += (
@@ -527,7 +533,7 @@ def send_email(to, subject, body):
     returns True when the email was saved. real delivery is not connected yet.
     """
     message = f"To: {to}\nSubject: {subject}\n\n{body}\n"
-    print("\n----- email (not really sent) -----\n" + message, flush=True)
+    print(message, flush=True)
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     unique_part = f"{time.time_ns() % 1_000_000:06d}"
@@ -543,22 +549,43 @@ def send_email(to, subject, body):
     return True
 
 
-# ----- locations (simulated) -----
+# ----- locations -----
+# towns and ZIP codes come from the GeoNames US postal code file, read straight
+# from data/US.zip the first time a location is looked up.
+# GeoNames data is licensed CC BY 4.0, see https://www.geonames.org
 
-KNOWN_PLACES = {
-    "atlanta": (33.7490, -84.3880),
-    "piedmont park": (33.7851, -84.3738),
-    "grant park": (33.7396, -84.3724),
-    "decatur": (33.7748, -84.2963),
-    "baltimore": (39.2904, -76.6122),
-    "towson": (39.4015, -76.6019),
-}
+PLACES_FILE = db.BACKEND_FOLDER / "data" / "US.zip"
+
+
+@functools.cache
+def place_index():
+    """the GeoNames file as lookups by ZIP code, by town and by state name."""
+    zip_codes = {}
+    towns = {}
+    state_codes = {}
+
+    with zipfile.ZipFile(PLACES_FILE) as archive:
+        rows = archive.read("US.txt").decode("utf-8").splitlines()
+
+    for row in rows:
+        fields = row.split("\t")
+        zip_code, town, state_name, state_code = fields[1:5]
+        if not fields[9] or not fields[10]:
+            continue
+
+        point = (float(fields[9]), float(fields[10]))
+        zip_codes[zip_code] = point
+        towns.setdefault(town.lower(), {}).setdefault(state_code.lower(), []).append(point)
+        state_codes[state_name.lower()] = state_code.lower()
+
+    return zip_codes, towns, state_codes
 
 
 def locate(text):
-    """return (latitude, longitude) for "lat, lng" or a known place name, or None.
+    """(latitude, longitude) for typed coordinates, a ZIP code or a US town, or None.
 
-    google maps is not connected yet.
+    examples: "39.29, -76.61", "21201", "Towson", "Portland, ME", "Portland, Maine".
+    a town name found in several states picks the one with the most ZIP codes.
     """
     text = (text or "").strip().lower()
 
@@ -566,12 +593,31 @@ def locate(text):
     if coordinates:
         return float(coordinates[1]), float(coordinates[2])
 
-    longest_names_first = sorted(KNOWN_PLACES, key=len, reverse=True)
-    for name in longest_names_first:
-        if name in text:
-            return KNOWN_PLACES[name]
+    zip_codes, towns, state_codes = place_index()
 
-    return None
+    zip_code = re.search(r"\b\d{5}\b", text)
+    if zip_code:
+        return zip_codes.get(zip_code[0])
+
+    parts = [part.strip() for part in text.split(",")]
+    town = parts[0]
+    state = parts[1] if len(parts) > 1 else ""
+    state = state_codes.get(state, state)
+
+    town_by_state = towns.get(town, {})
+    if state:
+        points = town_by_state.get(state)
+    elif town_by_state:
+        points = max(town_by_state.values(), key=len)
+    else:
+        points = None
+
+    if not points:
+        return None
+
+    latitude = sum(point[0] for point in points) / len(points)
+    longitude = sum(point[1] for point in points) / len(points)
+    return latitude, longitude
 
 
 # ----- matching -----
@@ -823,14 +869,12 @@ def my_page(conn, account_id):
     matches = []
     for row in match_rows:
         other_report = db.load_report(conn, row["otherpostid"])
-        other_contacts = db.contacts(conn, other_report["accountid"])
-        public_contacts = [c for c in other_contacts if c["visibility"] == "public"]
 
         matches.append({
             "score": row["score"],
             "explanation": row["explanation"],
             "report": other_report,
-            "contacts": public_contacts,
+            "contacts": public_contacts(conn, other_report["accountid"]),
         })
 
     return {
@@ -842,150 +886,85 @@ def my_page(conn, account_id):
 
 # ----- browsing reports -----
 
-MAX_BROWSE_RESULTS = 100
-DEFAULT_RADIUS_KM = 25
+MILES_TO_KM = 1.609344
 
 
-def like_pattern(text):
-    """a 'contains' pattern for ILIKE, with the wildcard characters in the text escaped."""
-    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
+def search_reports(conn, post_type="", species="", breed="", sex="", colors="",
+                   date_from="", date_to="", min_weight="", max_weight="",
+                   center=None, radius_miles=""):
+    """active reports that pass every filter given, newest first. every filter is optional.
+
+    center is a (latitude, longitude) pair. reports further than radius_miles from it are left out.
+    """
+    conditions = ["Status = 'active'", "ResolvedAt IS NULL"]
+    values = []
+
+    def require(condition, value):
+        conditions.append(condition)
+        values.append(value)
+
+    if post_type in ("lost", "found"):
+        require("PostType = %s", post_type)
+
+    if species:
+        require("lower(Species) = %s", species.lower())
+
+    if breed.strip() and species != "other":
+        require("Breed ILIKE %s", f"%{breed.strip()}%")
+
+    if sex in ("male", "female"):
+        require("Sex = %s", sex)
+
+    color_list = [color.strip().lower() for color in colors.split(",") if color.strip()]
+    if color_list:
+        require("PostID IN (SELECT PostID FROM PetColor WHERE Color = ANY(%s))", color_list)
+
+    first_day = check_date(date_from, "date_from", "The start date")
+    last_day = check_date(date_to, "date_to", "The end date")
+    if first_day and last_day and first_day > last_day:
+        raise ValidationError("The start date is after the end date.", "date_from")
+    if first_day:
+        require("LostOrFoundAt::date >= %s", first_day)
+    if last_day:
+        require("LostOrFoundAt::date <= %s", last_day)
+
+    lightest = check_number(min_weight, "min_weight", "The minimum weight", 0, 1000, required=False)
+    heaviest = check_number(max_weight, "max_weight", "The maximum weight", 0, 1000, required=False)
+    if lightest is not None:
+        require("Weight >= %s", lightest)
+    if heaviest is not None:
+        require("Weight <= %s", heaviest)
+
+    rows = db.query(
+        conn,
+        "SELECT PostID FROM Post WHERE " + " AND ".join(conditions)
+        + " ORDER BY LostOrFoundAt DESC",
+        values,
+    )
+    reports = [db.load_report(conn, row["postid"]) for row in rows]
+
+    if center is not None:
+        radius_km = check_number(radius_miles, "radius", "The search distance", 1, 500) * MILES_TO_KM
+        here = {"latitude": center[0], "longitude": center[1]}
+        reports = [report for report in reports if distance_km(here, report) <= radius_km]
+
+    return [
+        {"report": report, "contacts": public_contacts(conn, report["accountid"])}
+        for report in reports
+    ]
 
 
-def parse_day(text, field, label):
-    """the date in `text` (yyyy-mm-dd), or None when it is empty."""
-    text = check_text(text, field, label, 10, required=False)
-    if text is None:
+def check_date(text, field, label):
+    """the date in YYYY-MM-DD text, or None when the text is empty."""
+    if not text:
         return None
 
     try:
         return date.fromisoformat(text)
     except ValueError:
-        raise ValidationError(f"{label} must be a date like 2026-11-16.", field) from None
+        raise ValidationError(f"{label} is not a valid date.", field) from None
 
 
-def local_midnight(day):
-    """the start of `day` in the server's local time, like set_last_seen_time assumes."""
-    return datetime.combine(day, datetime.min.time()).astimezone()
-
-
-def browse_reports(conn, filters):
-    """the public reports that match the browse page's filters, as {"reports": [...]}.
-
-    `filters` maps filter names to text (for example request.args). empty filters are
-    ignored. only active, unresolved reports are shown. with a location the nearest
-    reports come first, otherwise the newest.
-    """
-    conditions = ["Post.Status = 'active'", "Post.ResolvedAt IS NULL"]
-    values = []
-
-    post_type = check_text(filters.get("post_type"), "post_type", "The report status", 10, required=False)
-    if post_type is not None:
-        post_type = post_type.lower()
-        if post_type not in ("lost", "found"):
-            raise ValidationError("The report status must be 'lost' or 'found'.", "post_type")
-        conditions.append("Post.PostType = %s")
-        values.append(post_type)
-
-    species = check_text(filters.get("species"), "species", "The species", 50, required=False)
-    if species is not None:
-        conditions.append("lower(Post.Species) = %s")
-        values.append(species.lower())
-
-    breed = check_text(filters.get("breed"), "breed", "The breed", 100, required=False)
-    if breed is not None:
-        conditions.append("Post.Breed ILIKE %s")
-        values.append(like_pattern(breed))
-
-    sex = check_text(filters.get("sex"), "sex", "Sex", 7, required=False)
-    if sex is not None:
-        sex = sex.lower()
-        if sex not in ("male", "female", "unknown"):
-            raise ValidationError("Sex must be male, female or unknown.", "sex")
-        conditions.append("Post.Sex = %s")
-        values.append(sex)
-
-    # "tan, white" and "tan and white" both mean the colors tan and white. a report
-    # matches when it has any of them, and "brown" also matches "dark brown".
-    color_text = check_text(filters.get("colors"), "colors", "Colors", 200, required=False)
-    if color_text is not None:
-        names = [name.strip().lower() for name in re.split(r",|&|/|\band\b", color_text)]
-        names = [name for name in names if name][:10]
-        if names:
-            tests = " OR ".join("PetColor.Color ILIKE %s" for _ in names)
-            conditions.append(
-                "EXISTS (SELECT 1 FROM PetColor "
-                f"WHERE PetColor.PostID = Post.PostID AND ({tests}))"
-            )
-            values.extend(like_pattern(name) for name in names)
-
-    lightest = check_number(filters.get("min_weight"), "min_weight", "The minimum weight", 0, 1000, required=False)
-    heaviest = check_number(filters.get("max_weight"), "max_weight", "The maximum weight", 0, 1000, required=False)
-    if lightest is not None and heaviest is not None and lightest > heaviest:
-        raise ValidationError("The minimum weight must not be more than the maximum weight.", "min_weight")
-    if lightest is not None:
-        conditions.append("Post.Weight >= %s")
-        values.append(lightest)
-    if heaviest is not None:
-        conditions.append("Post.Weight <= %s")
-        values.append(heaviest)
-
-    first_day = parse_day(filters.get("date_from"), "date_from", "The start date")
-    last_day = parse_day(filters.get("date_to"), "date_to", "The end date")
-    if first_day is not None and last_day is not None and first_day > last_day:
-        raise ValidationError("The start date must be on or before the end date.", "date_from")
-    if first_day is not None:
-        conditions.append("Post.LostOrFoundAt >= %s")
-        values.append(local_midnight(first_day))
-    if last_day is not None:
-        # the end date counts as a whole day, so stop at the start of the next one.
-        conditions.append("Post.LostOrFoundAt < %s")
-        values.append(local_midnight(last_day + timedelta(days=1)))
-
-    origin = None
-    radius = None
-    place = check_text(filters.get("location"), "location", "The location", 200, required=False)
-    if place is not None:
-        point = locate(place)
-        if point is None:
-            raise ValidationError(
-                "We could not find that place. Try a city name or coordinates like 33.75, -84.39.",
-                "location",
-            )
-        origin = {"latitude": point[0], "longitude": point[1]}
-
-        radius = check_number(filters.get("radius_km"), "radius_km", "The search distance", 0.1, 1000, required=False)
-        if radius is None:
-            radius = DEFAULT_RADIUS_KM
-
-    rows = db.query(
-        conn,
-        f"""
-        SELECT Post.PostID, Post.Latitude, Post.Longitude
-        FROM Post
-        WHERE {" AND ".join(conditions)}
-        ORDER BY Post.LostOrFoundAt DESC, Post.PostID DESC
-        """,
-        tuple(values),
-    )
-
-    if origin is not None:
-        nearby = []
-        for row in rows:
-            spot = {"latitude": float(row["latitude"]), "longitude": float(row["longitude"])}
-            km = distance_km(origin, spot)
-            if km <= radius:
-                nearby.append((km, row))
-
-        # sort is stable, so reports the same distance away stay newest first.
-        nearby.sort(key=lambda pair: pair[0])
-        rows = [row for km, row in nearby]
-
-    reports = []
-    for row in rows[:MAX_BROWSE_RESULTS]:
-        report = dict(db.load_report(conn, row["postid"]))
-        contacts = db.contacts(conn, report.pop("accountid"))
-        report["contacts"] = [c for c in contacts if c["visibility"] == "public"]
-        reports.append(report)
-
-    return {"reports": reports}
+def public_contacts(conn, account_id):
+    """the contact methods an account chose to show on its public report."""
+    return [contact for contact in db.contacts(conn, account_id) if contact["visibility"] == "public"]
